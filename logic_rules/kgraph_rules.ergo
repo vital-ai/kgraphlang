@@ -1,0 +1,136 @@
+:- use_argumentation_theory.
+
+// Test data and queries to use for reasoning LLMs
+
+concat_strings([], '').
+concat_strings([?String|?Rest], ?Result) :-
+    concat_strings(?Rest, ?RestResult),
+    ?Result \is ?String || ?RestResult.
+
+// interleave_commas([], []). // not valid comma list
+interleave_commas([?_First], [?_First]).
+interleave_commas([?_First | ?Rest], [?_First, ', ' | ?InterleavedRest]) :-
+    interleave_commas(?Rest, ?InterleavedRest).
+
+get_frame_string(?URI, ?Module, ?String) :-
+
+	?OID:?Class[URI -> ?URI]@?Module,
+
+    ?StartList = [?OID, '['],
+
+	?PropertyList = bagof { ?Property |
+		?OID:?Class[?Prop -> ?Value]@?Module,
+		?Property = [ ?OID, ?Class, ?Prop, ?Value ]
+	},
+
+    ?MiddleList = bagof { ?PString |
+
+        ?P \in ?PropertyList,
+        ?P = [ ?OID, ?Class, ?Prop, ?Value ],
+        // quota everything as a string for now
+        concat_strings([?Prop, '->', '\'', ?Value, '\''], ?PString)
+    },
+
+    interleave_commas(?MiddleList, ?MiddleListCommas),
+
+	?EndList = [']'],
+
+    ?List \is ?StartList ++ ?MiddleListCommas ++ ?EndList,
+
+	concat_strings(?List, ?String).
+
+%display_frame(?URI, ?Module) :-
+
+	?OID:?Class[URI -> ?URI]@?Module,
+
+	?PropertyList = bagof { ?Property |
+
+		?OID:?Class[?Prop -> ?Value]@?Module,
+		?Property = [ ?OID, ?Class, ?Prop, ?Value ]
+	},
+
+	write('OID: ')@\io, write(?OID)@\io, write(' : ')@\io, writeln(?Class)@\io,
+	write('URI: ')@\io, writeln(?URI)@\io,
+
+	write('\tProperty: ')@\io, write('URI')@\io, write(' = ')@\io, writeln(?URI)@\io,
+
+	\while(?P \in ?PropertyList) \do (
+
+		?P = [ ?OID, ?Class, ?Prop, ?Value ],
+		\if ( ?Prop \= 'URI') \then (
+			write('\tProperty: ')@\io, write(?Prop)@\io, write(' = ')@\io, writeln(?Value)@\io
+		)
+	),
+	writeln('')@\io.
+
+// Some test data
+
+Node::Thing.
+Edge::Thing.
+
+Entity::Node.
+
+Person::Entity.
+Friend::Person.
+
+Frame::Node.
+Address::Frame.
+
+fred:Person.
+mary:Person.
+jane:Person.
+
+fred[URI -> 'urn:fred', name -> 'Fred'].
+fred_address:Address[URI -> 'urn:fred_address', type -> 'Address', street -> '123 First Ave.', state -> 'PA', city ->'Philadelphia', zip -> '19127'].
+edge1:Edge[URI -> 'urn:edge1', source -> 'urn:fred', destination -> 'urn:fred_address'].
+
+mary[URI -> 'urn:mary', name -> 'Mary'].
+mary_address:Address[URI -> 'urn:mary_address', type -> 'Address', street -> '456 Main Street', state -> 'CA', city ->'Beverly Hills', zip -> '90210'].
+edge2:Edge[URI -> 'urn:edge2', source -> 'urn:mary', destination -> 'urn:mary_address'].
+
+jane[URI -> 'urn:jane', name -> 'Jane'].
+jane_address:Address[URI -> 'urn:jane_address', type -> 'Address', street -> '789 Jane Way', state -> 'NJ', city ->'Anytown', zip -> '08090'].
+edge3:Edge[URI -> 'urn:edge3', source -> 'urn:jane', destination -> 'urn:jane_address'].
+
+// Knowledge Graph Search and Traversal Code to use for Testing
+
+friend(?Friend) :- ?Friend \in [
+    'urn:fred',
+    'urn:mary',
+    'urn:jane'
+    ].
+
+// this is exact string, not keyword
+search_friends(?SearchTerm, ?Friend) :-
+    ?FriendObj:Person[URI -> ?Friend, name -> ?SearchTerm],
+    friend(?Friend).
+
+get_friend(?Friend, ?FriendString) :-
+    friend(?Friend),
+    ?FriendObj:Person[URI -> ?Friend],
+    ?M = \@,
+    get_frame_string(?Friend, ?M, ?FriendString).
+
+get_frame(?URI, ?FrameString) :-
+    ?FrameObj:Frame[URI -> ?URI],
+    ?M = \@,
+    get_frame_string(?URI, ?M, ?FrameString).
+
+traverse(?Node, ?TraverseNode) :-
+    ?NodeObject:Node[URI -> ?Node],
+    (
+        traverse_incoming(?Node, ?TraverseNode);
+        traverse_outgoing(?Node, ?TraverseNode)
+    ).
+
+traverse_outgoing(?Node, ?OutgoingNode) :-
+    ?Edge:Edge,
+    ?Edge[source -> ?Node, destination -> ?Destination],
+    ?DestinationObj:Node[URI -> ?Destination],
+    ?Destination = ?OutgoingNode.
+
+traverse_incoming(?Node, ?IncomingNode) :-
+    ?Edge:Edge,
+    ?Edge[source -> ?Source, destination -> ?Node],
+    ?SourceObj:Node[URI -> ?Source],
+    ?Source = ?IncomingNode.

@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='kgraphinfer',
-    version='0.0.1',
+    version='0.0.2',
     author='Marc Hadfield',
     author_email='marc@vital.ai',
     description='Kgraph Infer',
@@ -13,8 +13,12 @@ setup(
     license='Apache License 2.0',
     install_requires=[
 
-            'vital-ai-vitalsigns>=0.1.27',
-            'vital-ai-domain>=0.1.7'
+        'lark>=1.2.2',
+
+        'vital-ai-vitalsigns>=0.1.27',
+        'vital-ai-domain>=0.1.7',
+
+        'vital-logic>=0.1.0'
 
     ],
     extras_require={

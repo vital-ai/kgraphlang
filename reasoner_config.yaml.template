@@ -1,0 +1,6 @@
+vital_llm_reasoner:
+  openai_key: ""
+  google_search_key: ""
+logic_engine:
+    ERGO_ROOT: '{HOME}/ergoai/Coherent/ERGOAI_3.0/ErgoAI'
+    XSB_DIR: '{HOME}/ergoai/Coherent/ERGOAI_3.0/XSB/config/aarch64-apple-darwin23.6.0'
