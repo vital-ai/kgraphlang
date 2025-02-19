@@ -1,5 +1,10 @@
 from lark import Lark, Transformer
 
+# TODO add date, potentially format like "2025-01-01"^Date
+# TODO add time, date-time with ^Time and ^DateTime
+# TODO add currency with ^Currency(Currency Code), "10.00"^Currency(USD)
+# TODO add URI/IRI/URN
+
 # TODO: add Not
 
 dsl_grammar = r"""
@@ -16,28 +21,32 @@ dsl_grammar = r"""
         | VAR
         | STRING
         | NUMBER
-        | BOOLEAN
+        | boolean
         | list
         | atom
 
     group: "(" expression ")"
 
-    unification: VAR "=" (VAR | NUMBER | STRING | BOOLEAN | list | atom)
+    unification: VAR "=" (VAR | NUMBER | STRING | boolean | list | atom)
 
     comparison: VAR COMPARE value
 
     function_call: NAME "(" [func_arg ("," func_arg)*] ")"
-    func_arg: function_call | VAR | STRING | NUMBER | BOOLEAN | list
+    func_arg: function_call | VAR | STRING | NUMBER | boolean | list
 
-    value: VAR | NUMBER | STRING | BOOLEAN | list
+    value: VAR | NUMBER | STRING | boolean | list
+
+    boolean: TRUE | FALSE
+
+    TRUE: "true"
+    FALSE: "false"
 
     atom: NAME
 
     list: "[" [list_items] "]"
     list_items: list_value ("," list_value)*
-    list_value: STRING | NUMBER | BOOLEAN | list | atom
-
-    BOOLEAN: "true" | "false"
+    list_value: STRING | NUMBER | boolean | list | atom
+        
     VAR: "?" /[a-zA-Z0-9_]+/
     NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
     STRING: "'" /[^']*/ "'"
@@ -89,12 +98,20 @@ class KGraphTransformer(Transformer):
     def func_arg(self, items):
         return items[0]
 
+    def TRUE(self, _):
+        return True
+
+    def FALSE(self, _):
+        return False
+
     def value(self, items):
         return items[0]
 
-    # "atom" method
+    def boolean(self, children):
+        return children[0]
+
     def atom(self, items):
-        return ("atom", items[0])  # or just `return items[0]`
+        return ("atom", items[0])
 
     def list(self, items):
         return items[0] if items else []
@@ -104,9 +121,6 @@ class KGraphTransformer(Transformer):
 
     def list_value(self, items):
         return items[0]
-
-    def BOOLEAN(self, token):
-        return True if token == "true" else False
 
     def VAR(self, token):
         return str(token)

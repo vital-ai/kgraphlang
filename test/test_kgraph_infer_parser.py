@@ -47,6 +47,8 @@ for infer in inferences:
 # can use to replace function call with "safe" call or one that include
 # module parameter
 
+# could use to do a separate request like get_summary(file_path, ?summary)
+
 # can check function names against those that exist by querying ergo
 
 def my_func_rewriter(func_node):
