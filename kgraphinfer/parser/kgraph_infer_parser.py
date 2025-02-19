@@ -9,7 +9,7 @@ dsl_grammar = r"""
     or_group: and_group (";" and_group)*
     and_group: term ("," term)*
 
-    term: assignment
+    term: unification
         | comparison
         | function_call
         | group
@@ -22,7 +22,7 @@ dsl_grammar = r"""
 
     group: "(" expression ")"
 
-    assignment: VAR "=" (VAR | NUMBER | STRING | BOOLEAN | list | atom)
+    unification: VAR "=" (VAR | NUMBER | STRING | BOOLEAN | list | atom)
 
     comparison: VAR COMPARE value
 
@@ -68,9 +68,9 @@ class KGraphTransformer(Transformer):
     def term(self, items):
         return items[0]
 
-    def assignment(self, items):
+    def unification(self, items):
         left, right = items
-        return ("assign", left, "=", right)
+        return ("unify", left, "=", right)
 
     def comparison(self, items):
         left, operator, right = items
@@ -164,10 +164,10 @@ class KGraphInferParser:
                 items = node[1]
                 return "; ".join(self.ast_to_dsl(i) for i in items)
 
-            # (2) assignment
-            elif tag == "assign":
-                # node = ('assign', left, '=', right)
-                # e.g. ('assign', '?x', '=', ('atom','a'))
+            # (2) unification
+            elif tag == "unify":
+                # node = ('unify', left, '=', right)
+                # e.g. ('unify', '?x', '=', ('atom','a'))
                 var_name = self.ast_to_dsl(node[1])
                 right_side = self.ast_to_dsl(node[3])
                 return f"{var_name} = {right_side}"
@@ -270,13 +270,13 @@ class KGraphInferParser:
                 new_items = [self.transform_ast(i, func_call_transform) for i in items]
                 return (tag, new_items)
 
-            elif tag == "assign":
-                # e.g. ("assign", varName, "=", rightSide)
+            elif tag == "unify":
+                # e.g. ("unify", varName, "=", rightSide)
                 var_name = ast[1]
                 eq = ast[2]
                 right_side = ast[3]
                 new_right_side = self.transform_ast(right_side, func_call_transform)
-                return ("assign", var_name, eq, new_right_side)
+                return ("unify", var_name, eq, new_right_side)
 
             elif tag == "compare":
                 # e.g. ("compare", leftVar, operator, rightVal)
@@ -306,4 +306,3 @@ class KGraphInferParser:
 
         # 3) Otherwise (basic str, int, bool, etc.) return unchanged
         return ast
-
