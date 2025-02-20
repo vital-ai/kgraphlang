@@ -106,6 +106,42 @@ inferences = [
 
     "?k = 'answer', ?m = [ 'urn:uri_prop'^URI = 'urn:123'^URI, ?k = 42 ].",
 
+    # a Map is a collection of entries of k=v, with unique k
+    # a Map can be compared with another Map via "subset"
+    # which aligns a subset of entries from one to the other
+    # in contrast, a single-entry Map can be compared to a Map via "in"
+    # which aligns the single entry to the target Map
+
+    # an unbound set of 3 k=v subset a 10 entry map would find 120 combinations (10 choose 3)
+    # an unbound k=v in 10 a entry Map would find 10 entries
+
+    """
+    ?uri_prop = 'urn:uri_prop'^URI,
+    ?name_prop = 'urn:name_prop'^URI,
+    ?email_prop = 'urn:email_prop'^URI,
+
+    person_uri_list(?PersonList), 
+    
+    ?PersonEmailMapList = collection { 
+        
+        ?PersonMapRecord | 
+        
+        ?Pid in ?PersonList, 
+        get_person_map(?Pid, ?PersonMap),
+         
+        [ 
+            ?uri_prop = ?Pid,
+            ?name_prop = ?Name,
+            ?email_prop = ?Email
+        ] subset ?PersonMap,
+        
+        ?PersonMapRecord = [
+            ?uri_prop = ?Pid,
+            ?name_prop = ?Name,
+            ?email_prop = ?Email
+        ] 
+    }.""",
+
 ]
 
 for infer in inferences:
