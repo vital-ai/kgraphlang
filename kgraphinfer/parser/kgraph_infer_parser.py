@@ -1,21 +1,30 @@
 from lark import Lark, Transformer
+import re
 
-# TODO add date, potentially format like "2025-01-01"^Date
+# TODO add date, format like "2025-01-01"^Date
 # TODO add time, date-time with ^Time and ^DateTime
 # TODO add currency with ^Currency(Currency Code), "10.00"^Currency(USD)
-# TODO add URI/IRI/URN
-
+# TODO add duration with ^Duration
+# TODO add URI/IRI/URN with ^URI
 # TODO: add Not
+# TODO list comparisons (membership, subset)
+# TODO aggregate functions
 
 dsl_grammar = r"""
     start: expression "."
-    expression: or_group
+    
+    expression: equality | or_group
 
     or_group: and_group (";" and_group)*
+    
     and_group: term ("," term)*
-
-    term: unification
+    
+    term: not_expr
+        | typed_string
+        | unification
         | comparison
+        | list_comparison
+        | aggregation_expr
         | function_call
         | group
         | VAR
@@ -25,45 +34,99 @@ dsl_grammar = r"""
         | list
         | atom
 
+    not_expr: "not" "(" expression ")"
+
     group: "(" expression ")"
 
-    unification: VAR "=" (VAR | NUMBER | STRING | boolean | list | atom)
+    unification: VAR "=" (VAR | NUMBER | typed_string | STRING | boolean | list | atom | aggregation_expr)
 
-    comparison: VAR COMPARE value
+    equality: value eq_op value
+    eq_op: EQUAL
 
+    aggregation_expr: aggregate_operator LBRACE VAR  PIPE  agg_body RBRACE
+    agg_body: expression ("," expression)*
+
+    comparison: value COMPARE value
+
+    list_comparison: membership_comparison | subset_comparison
+
+    membership_comparison: value IN list_expr
+    subset_comparison: list_expr SUBSET list_expr
+
+    list_expr: VAR | list
+    
     function_call: NAME "(" [func_arg ("," func_arg)*] ")"
-    func_arg: function_call | VAR | STRING | NUMBER | boolean | list
+    func_arg: function_call | VAR | typed_string | STRING | NUMBER | boolean | list
 
-    value: VAR | NUMBER | STRING | boolean | list
+    value: VAR | NUMBER | typed_string | STRING | boolean | list | aggregation_expr
 
     boolean: TRUE | FALSE
-
-    TRUE: "true"
-    FALSE: "false"
 
     atom: NAME
 
     list: "[" [list_items] "]"
     list_items: list_value ("," list_value)*
-    list_value: STRING | NUMBER | boolean | list | atom
+    list_value: VAR | STRING | NUMBER | typed_string | boolean | list | atom
+            
+    typed_string: DATE | DATE_TIME | TIME | DURATION | CURRENCY | URI
+    
+    aggregate_operator: COLLECTION | SET | AVERAGE | SUM | MIN | MAX | COUNT
         
+    PIPE: "|"
+    COLLECTION: "collection"
+    SET: "set"
+    AVERAGE: "average"
+    SUM: "sum"
+    MIN: "min"
+    MAX: "max"
+    COUNT: "count"
+
+    LBRACE: "{"
+    RBRACE: "}"
+    EQUAL: "="
+    
+    TRUE: "true"
+    FALSE: "false"
+    
+    DATE:      /'[^']*'\^Date/
+    DATE_TIME: /'[^']*'\^DateTime/
+    TIME:      /'[^']*'\^Time/
+    DURATION:  /'[^']*'\^Duration/
+    CURRENCY:  /'[^']*'\^Currency\([A-Z]+\)/
+    URI:       /'[^']*'\^URI/
+    
     VAR: "?" /[a-zA-Z0-9_]+/
-    NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
-    STRING: "'" /[^']*/ "'"
+    
+    IN: "in"
+    SUBSET: "subset"
+    
+    AGG_OP: "collection" | "set" | "average" | "sum" | "min" | "max" | "count"
+
     NUMBER: /-?[0-9]+(\.[0-9]+)?/
     COMPARE: ">" | "<" | ">=" | "<=" | "==" | "!="
-    EQUAL: "="
-
+    
+    NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
+    STRING: "'" /[^']*/ "'"
+    
     %import common.WS
     %ignore WS
 """
 
 class KGraphTransformer(Transformer):
+
     def start(self, items):
         return items[0]
 
     def expression(self, items):
-        return items[0] if len(items) == 1 else items
+        # items: either [or_group] or [or_group, EQUAL, or_group]
+        if len(items) == 1:
+            return items[0]
+        else:
+            lhs, _, rhs = items
+            if isinstance(lhs, str) and lhs.startswith("?"):
+                return ("unify", lhs, "=", rhs)
+            else:
+                return ("equal", lhs, rhs)
 
     def or_group(self, items):
         return ("OR", items) if len(items) > 1 else items[0]
@@ -77,9 +140,16 @@ class KGraphTransformer(Transformer):
     def term(self, items):
         return items[0]
 
+    def not_expr(self, items):
+        return ("not", items[0])
+
     def unification(self, items):
         left, right = items
         return ("unify", left, "=", right)
+
+    def equality(self, items):
+        left, _, right = items  # The "=" token is skipped.
+        return ("equal", left, right)
 
     def comparison(self, items):
         left, operator, right = items
@@ -122,6 +192,39 @@ class KGraphTransformer(Transformer):
     def list_value(self, items):
         return items[0]
 
+    def list_expr(self, items):
+        return items[0]
+
+    # List comparison rules
+    def membership_comparison(self, items):
+        # items: [value, IN, list_expr]
+        left = items[0]
+        right = items[2]
+        return ("in", left, right)
+
+    def subset_comparison(self, items):
+        # items: [list_expr, SUBSET, list_expr]
+        left = items[0]
+        right = items[2]
+        return ("subset", left, right)
+
+    def list_comparison(self, items):
+        return items[0]
+
+    def aggregation_expr(self, items):
+        op_token = items[0]
+        op = op_token.value if hasattr(op_token, "value") else str(op_token)
+        var = items[2]
+        body = items[4]
+        return ("aggregate", op, var, body)
+
+    def aggregate_operator(self, items):
+        token = items[0]
+        return token.value if hasattr(token, "value") else str(token)
+
+    def agg_body(self, items):
+        return items
+
     def VAR(self, token):
         return str(token)
 
@@ -134,6 +237,60 @@ class KGraphTransformer(Transformer):
 
     def NAME(self, token):
         return str(token)
+
+    def DATE(self, token):
+        # token.value is like: '2023-02-18'^Date
+        val = token.value
+        inner = val[1: val.index("'^")]
+        return ("date", inner)
+
+    def DATE_TIME(self, token):
+        val = token.value
+        inner = val[1: val.index("'^")]
+        return ("dateTime", inner)
+
+    def TIME(self, token):
+        val = token.value
+        inner = val[1: val.index("'^")]
+        return ("time", inner)
+
+    def DURATION(self, token):
+        val = token.value
+        inner = val[1: val.index("'^")]
+        return ("duration", inner)
+
+    def URI(self, token):
+        val = token.value
+        inner = val[1: val.index("'^")]
+        return ("uri", inner)
+
+    def CURRENCY(self, token):
+        val = token.value  # e.g. "'10.00'^Currency(USD)"
+        inner = val[1: val.index("'^")]
+        m = re.search(r"\^Currency\(([A-Z]+)\)$", val)
+        if m:
+            code = m.group(1)
+            if len(code) != 3:
+                raise ValueError(f"Invalid currency code: '{code}'. Expected a 3-letter currency code.")
+        else:
+            code = None
+        return ("currency", inner, code)
+
+    def typed_string(self, items):
+        return items[0]
+
+    def COMPARE(self, token):
+        return token.value
+
+    def IN(self, token):
+        return token
+
+    def SUBSET(self, token):
+        return token
+
+    def AGG_OP(self, token):
+        return token
+
 
 class KGraphInferParser:
 
@@ -167,7 +324,6 @@ class KGraphInferParser:
         if isinstance(node, tuple):
             tag = node[0]
 
-            # (1) AND, OR groups
             if tag == "AND":
                 # node = ('AND', [item1, item2, ...])
                 items = node[1]
@@ -178,15 +334,17 @@ class KGraphInferParser:
                 items = node[1]
                 return "; ".join(self.ast_to_dsl(i) for i in items)
 
-            # (2) unification
-            elif tag == "unify":
-                # node = ('unify', left, '=', right)
-                # e.g. ('unify', '?x', '=', ('atom','a'))
-                var_name = self.ast_to_dsl(node[1])
-                right_side = self.ast_to_dsl(node[3])
-                return f"{var_name} = {right_side}"
+            elif tag == "not":
+                # node = ("not", expr)
+                return f"not({self.ast_to_dsl(node[1])})"
 
-            # (3) comparison
+            elif tag == "unify":
+                # For unification (assignment), left-hand side is a variable.
+                return f"{self.ast_to_dsl(node[1])} = {self.ast_to_dsl(node[3])}"
+            elif tag == "equal":
+                # For equality tests between arbitrary values.
+                return f"{self.ast_to_dsl(node[1])} = {self.ast_to_dsl(node[2])}"
+
             elif tag == "compare":
                 # node = ('compare', left, operator_string, right)
                 left_side = self.ast_to_dsl(node[1])
@@ -194,7 +352,6 @@ class KGraphInferParser:
                 right_side = self.ast_to_dsl(node[3])
                 return f"{left_side} {operator} {right_side}"
 
-            # (4) function
             elif tag == "function":
                 # node = ('function', name_string, [arg1, arg2, ...])
                 func_name = node[1]
@@ -202,16 +359,35 @@ class KGraphInferParser:
                 arg_str = ", ".join(self.ast_to_dsl(a) for a in args)
                 return f"{func_name}({arg_str})"
 
-            # (5) group
             elif tag == "GROUP":
                 # node = ('GROUP', subexpr)
                 return f"({self.ast_to_dsl(node[1])})"
 
-            # (6) atom
             elif tag == "atom":
                 # node = ('atom', 'a')
                 return node[1]  # just return 'a'
 
+            elif tag == "date":
+                return f"'{node[1]}'^Date"
+            elif tag == "dateTime":
+                return f"'{node[1]}'^DateTime"
+            elif tag == "time":
+                return f"'{node[1]}'^Time"
+            elif tag == "duration":
+                return f"'{node[1]}'^Duration"
+            elif tag == "uri":
+                return f"'{node[1]}'^URI"
+            elif tag == "currency":
+                return f"'{node[1]}'^Currency({node[2]})"
+            elif tag == "in":
+                return f"{self.ast_to_dsl(node[1])} in {self.ast_to_dsl(node[2])}"
+            elif tag == "subset":
+                return f"{self.ast_to_dsl(node[1])} subset {self.ast_to_dsl(node[2])}"
+            if tag == "aggregate":
+                op = node[1]
+                var = node[2]
+                body = ", ".join(self.ast_to_dsl(exp) for exp in node[3])
+                return f"{op}{{ {var} | {body} }}"
             else:
                 # fallback
                 return str(node)
@@ -285,7 +461,6 @@ class KGraphInferParser:
                 return (tag, new_items)
 
             elif tag == "unify":
-                # e.g. ("unify", varName, "=", rightSide)
                 var_name = ast[1]
                 eq = ast[2]
                 right_side = ast[3]
@@ -293,7 +468,6 @@ class KGraphInferParser:
                 return ("unify", var_name, eq, new_right_side)
 
             elif tag == "compare":
-                # e.g. ("compare", leftVar, operator, rightVal)
                 left = ast[1]
                 op = ast[2]
                 right = ast[3]
@@ -301,7 +475,6 @@ class KGraphInferParser:
                 return ("compare", left, op, new_right)
 
             elif tag == "GROUP":
-                # ("GROUP", sub_expr)
                 subexpr = ast[1]
                 new_subexpr = self.transform_ast(subexpr, func_call_transform)
                 return ("GROUP", new_subexpr)
@@ -311,12 +484,13 @@ class KGraphInferParser:
                 # Typically nothing special to transform, return as-is
                 return ast
 
-            # If there's some unrecognized tuple shape, just return it unchanged
+            elif tag == "not":
+                new_expr = self.transform_ast(ast[1], func_call_transform)
+                return ("not", new_expr)
+
             return ast
 
-        # 2) If 'ast' is a list, transform each element
         elif isinstance(ast, list):
             return [self.transform_ast(item, func_call_transform) for item in ast]
 
-        # 3) Otherwise (basic str, int, bool, etc.) return unchanged
         return ast

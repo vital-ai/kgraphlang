@@ -24,8 +24,48 @@ inferences = [
     "?discount > [10, 20, 30].",  # INVALID (Lists can't be compared)
     "adjustment(?x, -3.5), threshold(5.0).",
     "compute_result(?x, [ happy, 'two', 3, true ]).",
-    "test_list(?x, [ true, false ]), person(?y, [ 'Alice', 'Bob' ])."
-    ]
+    "test_list(?x, [ true, false ]), person(?y, [ 'Alice', 'Bob' ]).",
+
+    "not(?x = 'value').",
+
+    "not(person(?x, 'john')).",
+
+    "person(?X), not( ( enemy(?X); frenemy(?X) ) ), get_email(?X, ?M).",
+
+    "?event_date = '2023-02-18'^Date.",
+
+    "'2023-02-18'^Date >= '2023-02-18'^Date.",
+
+    "'2023-02-18'^Date >= ?event_date.",
+
+    "?event_datetime = '2023-02-18T14:00:00'^DateTime.",
+    "?meeting_time = '14:30'^Time.",
+    "?duration = 'P3Y6M4DT12H30M5S'^Duration.",
+    "?price = '10.00'^Currency(USD).",
+    "?price = '10.00'^Currency(B).",
+    "?price = '10.00'^Currency(ALPHA).",
+    "?website = 'https://example.com'^URI.",
+
+    "?x in ['a', 'b', 'c'].",
+    "['a','b'] subset ['a','b','c'].",
+    "?x subset ?y.",
+    "?x = 42, ?x > 10.",
+
+    "?friend_list = collection { ?friend_tuple | person(?p), not(enemy_of(?p, ?friend)), friend_of(?p, ?friend), ?friend_tuple = [?p, ?friend] }.",
+
+    "5 = count{ ?item | ?item in ['apple', 'orange', 'banana', 'grape', 'pear'] }.",
+
+    "5 >= count{ ?item | ?item in ['apple', 'orange', 'banana', 'grape', 'pear'] }.",
+
+    "?x < count{ ?item | ?item in ['apple', 'orange', 'banana', 'grape', 'pear'] }.",
+
+    "?x = count{ ?item | tasty(?item), ?item in ['apple', 'orange', 'banana', 'grape', 'pear'] }.",
+
+    "?total = sum{ ?value | get_property(?x, 'hasScore', ?value) }.",
+
+    "?avg = average{ ?score | get_property(?x, 'hasScore', ?score) }."
+
+]
 
 for infer in inferences:
     print(f"Infer: {infer}")
