@@ -1,7 +1,5 @@
 from kgraphinfer.parser.kgraph_infer_parser import KGraphInferParser
 
-# kgraph_infer = "?x >= ?y, person(?x, father(?y, 'john'))."
-
 parser = KGraphInferParser()
 
 inferences = [
@@ -92,6 +90,21 @@ inferences = [
     # this moves the aggregation result into a variable and then uses the variable in math
     "?count = count{ ?item | ?item in ['apple', 'orange', 'banana', 'grape', 'pear'] }, ?x is ?y + ?count.",
 
+    "['123' = ?value] in ?map.",
+
+    "?m = [ 'foo' = 'bar', ?k = 42 ].",
+
+    "[ 'foo' = 'bar' ] subset [ 'foo' = 'bar', 'answer' = 42 ].",
+
+    "?nested_map = [ 'outer' = [ 'inner_key' = [ 1, 2, 3 ] ] ].",
+
+    "?sum = sum{ ?v | [ ?k = ?v ] in ?map }.",
+
+    "?sum = sum{ ?v | [ 'k' = ?v ] in [ 'k' = 10, 'other' = true, 'k' = 20 ] }.",
+
+    "?sum = sum{ ?v | [ ?k = ?v ] in [ 'k1' = 10, 'k2' = 15, 'k3' = 20 ] }.",
+
+    "?k = 'answer', ?m = [ 'urn:uri_prop'^URI = 'urn:123'^URI, ?k = 42 ].",
 
 ]
 
@@ -143,6 +156,7 @@ def my_func_rewriter(func_node):
 # clause{?X,?_}, ?X=..?F, ?F[ith(1)->?N]@\btp, ?N=hilog(?FN,?M).
 # clause{?X,?_}, ?X=..?F, ?F[ith(1)->?N]@\btp, ?N=hilog(?FN,?M), ?X[term2json->?J]@\json.
 
+# test transform
 
 ast = parser.infer_parse("?x=5, get_from_database(?id, ?value), ?x > 50.")
 print("Original AST:", ast)

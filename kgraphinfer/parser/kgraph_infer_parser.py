@@ -10,13 +10,14 @@ import re
 # TODO list comparisons (membership, subset)
 # TODO aggregate functions
 # TODO add math expressions
+# TODO add Map
 
-# note: and expressions bind more tightly than or expressions
+# note: AND expressions bind more tightly than OR expressions
 # which is the typical behavior
 
 dsl_grammar = r"""
     start: expression "."
-        
+    
     expression: or_expression
     
     or_expression: and_expression (";" and_expression)*
@@ -31,8 +32,14 @@ dsl_grammar = r"""
 
     equality: value eq_op value
 
-    unification: VAR eq_op (arith_expr | typed_string | STRING | boolean | list | atom | aggregation_expr | function_call)
-        
+    unification: VAR eq_op (arith_expr 
+        | typed_string 
+        | STRING 
+        | boolean 
+        | bracketed_collection 
+        | aggregation_expr 
+        | function_call)
+    
     term: not_expr
         | typed_string
         | unification
@@ -57,13 +64,51 @@ dsl_grammar = r"""
 
     list_comparison: membership_comparison | subset_comparison
 
-    membership_comparison: value IN list_expr
-    subset_comparison: list_expr SUBSET list_expr
+    membership_comparison: value IN value
+    subset_comparison: value SUBSET value
 
-    list_expr: VAR | list
+    ?bracketed_collection: "[" [collection_body] "]"
+
+    ?collection_body: map_collection
+                | list_collection
+                |  // empty => parse as empty list
+
+
+    // 1) If the first token can form "map_item", we parse an entire map
+    map_collection: map_item ("," map_item)*
+    // 2) Otherwise, it's a list
+    list_collection: list_item ("," list_item)*
+
+    map_item: map_key "=" map_value
     
+    map_key: URI | STRING | VAR
+    
+    map_value: VAR 
+             | STRING 
+             | NUMBER 
+             | typed_string 
+             | boolean 
+             | bracketed_collection
+             | atom 
+
+
+    list_item: list_value
+    
+    list_value: VAR 
+        | STRING 
+        | NUMBER
+        | typed_string 
+        | boolean 
+        | bracketed_collection 
+        | atom
+        
     function_call: NAME "(" [func_arg ("," func_arg)*] ")"
-    func_arg: function_call | typed_string | STRING | boolean | list | arith_expr
+    func_arg: function_call 
+        | typed_string 
+        | STRING 
+        | boolean 
+        | bracketed_collection 
+        | arith_expr
 
     ?arith_expr: arith_expr "+" arith_term   -> add
            | arith_expr "-" arith_term   -> sub
@@ -75,17 +120,18 @@ dsl_grammar = r"""
             | VAR                         -> var
             | "(" arith_expr ")"          -> a_group
             
-
-    value: arith_expr | typed_string | STRING | boolean | list | function_call | aggregation_expr
+    value: arith_expr 
+        | typed_string 
+        | STRING 
+        | boolean 
+        | bracketed_collection 
+        | function_call 
+        | aggregation_expr
 
     boolean: TRUE | FALSE
 
     atom: NAME
-
-    list: "[" [list_items] "]"
-    list_items: list_value ("," list_value)*
-    list_value: VAR | STRING | NUMBER | typed_string | boolean | list | atom
-            
+    
     typed_string: DATE | DATE_TIME | TIME | DURATION | CURRENCY | URI
     
     aggregate_operator: COLLECTION | SET | AVERAGE | SUM | MIN | MAX | COUNT
@@ -146,11 +192,6 @@ class KGraphTransformer(Transformer):
         return ("OR", items)
 
     def and_expression(self, items):
-
-        # if len(items) == 1:
-        #    # Implicitly group a single simple_expr.
-        #    return ("GROUP", items[0])
-
         if len(items) == 1:
             return items[0]
         return ("AND", items)
@@ -189,9 +230,6 @@ class KGraphTransformer(Transformer):
     def number(self, items):
         return items[0]
 
-    def var(self, items):
-        return items[0]
-
     def a_group(self, items):
         return items[0]
 
@@ -209,6 +247,9 @@ class KGraphTransformer(Transformer):
 
     def not_expr(self, items):
         return ("not", items[0])
+
+    def var(self, items):
+        return items[0]
 
     def comparison(self, items):
         left, operator, right = items
@@ -246,19 +287,54 @@ class KGraphTransformer(Transformer):
     def atom(self, items):
         return ("atom", items[0])
 
-    def list(self, items):
-        return items[0] if items else []
+    def list_collection(self, items):
+        return ("list", items)
 
-    def list_items(self, items):
-        return items
+    def list_item(self, items):
+        # items is typically a single element list from Lark
+        # So return items[0] if that’s how Lark is feeding it
+        return items[0] if len(items) == 1 else items
+
+    def list_comparison(self, items):
+        return items[0]
 
     def list_value(self, items):
+        # If there's exactly one child, just return it
+        return items[0] if len(items) == 1 else items
+
+    def collection_expr(self, items):
         return items[0]
 
-    def list_expr(self, items):
-        return items[0]
+    def bracketed_collection(self, items):
+        # items is either empty (if collection_body was not called),
+        # or a single subnode from collection_body.
+        if not items:
+            return ("list", [])  # empty => parse as empty list
+        return items[0]  # either ("list", [...]) or ("map", [...])
 
-    # List comparison rules
+    def collection_body(self, items):
+        # This can match map_items, list_items, or be empty
+        # If empty, the parser won't even call this method,
+        return items[0] if items else ("list", [])
+
+    def map_collection(self, items):
+        return ("map", items)
+
+    def map_item(self, pair):
+        # pair = [map_key, map_value]
+        return (pair[0], pair[1])
+
+    def map_key(self, key):
+        # If it's a list with a single item, unwrap it
+        if isinstance(key, list) and len(key) == 1:
+            return key[0]
+        return key
+
+    def map_value(self, val):
+        if isinstance(val, list) and len(val) == 1:
+            return val[0]
+        return val
+
     def membership_comparison(self, items):
         # items: [value, IN, list_expr]
         left = items[0]
@@ -270,9 +346,6 @@ class KGraphTransformer(Transformer):
         left = items[0]
         right = items[2]
         return ("subset", left, right)
-
-    def list_comparison(self, items):
-        return items[0]
 
     def aggregation_expr(self, items):
         op_token = items[0]
@@ -410,7 +483,6 @@ class KGraphInferParser:
                 operator = node[2]
                 right_side = self.ast_to_dsl(node[3])
                 return f"{left_side} {operator} {right_side}"
-
             elif tag == "function":
                 # node = ('function', name_string, [arg1, arg2, ...])
                 func_name = node[1]
@@ -427,6 +499,19 @@ class KGraphInferParser:
             elif tag == "atom":
                 # node = ('atom', 'a')
                 return node[1]  # just return 'a'
+
+            if tag == "list":
+                items = node[1]
+                rendered = ", ".join(self.ast_to_dsl(i) for i in items)
+                return f"[{rendered}]"
+            elif tag == "map":
+                pairs = node[1]
+                rendered = []
+                for (k, v) in pairs:
+                    k_str = self.ast_to_dsl(k)
+                    v_str = self.ast_to_dsl(v)
+                    rendered.append(f"{k_str} = {v_str}")
+                return f"[{', '.join(rendered)}]"
 
             elif tag == "date":
                 return f"'{node[1]}'^Date"
