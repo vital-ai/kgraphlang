@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='kgraphinfer',
-    version='0.0.4',
+    version='0.0.6',
     author='Marc Hadfield',
     author_email='marc@vital.ai',
     description='Kgraph Infer',

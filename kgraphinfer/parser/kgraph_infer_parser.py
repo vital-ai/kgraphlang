@@ -146,9 +146,13 @@ class KGraphTransformer(Transformer):
         return ("OR", items)
 
     def and_expression(self, items):
+
+        # if len(items) == 1:
+        #    # Implicitly group a single simple_expr.
+        #    return ("GROUP", items[0])
+
         if len(items) == 1:
-            # Implicitly group a single simple_expr.
-            return ("GROUP", items[0])
+            return items[0]
         return ("AND", items)
 
     def statement(self, items):
@@ -345,9 +349,6 @@ class KGraphTransformer(Transformer):
         return token
 
     def SUBSET(self, token):
-        return token
-
-    def AGG_OP(self, token):
         return token
 
     def IS(self, token):
