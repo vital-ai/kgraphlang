@@ -50,6 +50,7 @@ inferences = [
     "['a','b'] subset ['a','b','c'].",
     "?x subset ?y.",
     "?x = 42, ?x > 10.",
+    "[?x,'b'] subset ['a',?y,'c'].",
 
     "?friend_list = collection { ?friend_tuple | person(?p), not(enemy_of(?p, ?friend)), friend_of(?p, ?friend), ?friend_tuple = [?p, ?friend] }.",
 
@@ -63,7 +64,34 @@ inferences = [
 
     "?total = sum{ ?value | get_property(?x, 'hasScore', ?value) }.",
 
-    "?avg = average{ ?score | get_property(?x, 'hasScore', ?score) }."
+    "?avg = average{ ?score | get_property(?x, 'hasScore', ?score) }.",
+
+    "?x is ?y + 5.",
+
+    "?x > ( ?y / 10.0 ) * 5.0.",
+
+    "?x is ?y + 5, ?x < count{ ?item | ?item in ['apple', 'orange', 'banana', 'grape', 'pear'] }.",
+
+    "?x is ?y + 5; ?x < count{ ?item | ?item in ['apple', 'orange', 'banana', 'grape', 'pear'] }.",
+
+    # note: this is a little ambiguous about the treatment of: ( a;b;c,(d,f))
+    "?x is ?y + 5; ?y > 5 + 5, ( a;b;c,(d,f) ), ?x < count{ ?item | ?item in ['apple', 'orange', 'banana', 'grape', 'pear'] }.",
+
+    # note: this removes the ambiguity by putting parenthesis around (a;b;c)
+    "?x is ?y + 5; ?y > 5 + 5, ( (a;b;c),(d,f)), ?x < count{ ?item | ?item in ['apple', 'orange', 'banana', 'grape', 'pear'] }.",
+
+    # Note: AND binds more tightly which makes it a;b; + c,(d,f)
+    "a;b;c,(d,f).",
+
+    "(a;b;c),(d,f).",
+
+    "outer(inner(?x)).",
+    # this should not parse because aggregation can't directly be included in a math function
+    "?x is ?y + count{ ?item | ?item in ['apple', 'orange', 'banana', 'grape', 'pear'] }.",
+
+    # this moves the aggregation result into a variable and then uses the variable in math
+    "?count = count{ ?item | ?item in ['apple', 'orange', 'banana', 'grape', 'pear'] }, ?x is ?y + ?count.",
+
 
 ]
 
@@ -88,6 +116,7 @@ for infer in inferences:
 # module parameter
 
 # could use to do a separate request like get_summary(file_path, ?summary)
+# and replace with a lookup of that summary that's been generated
 
 # can check function names against those that exist by querying ergo
 
@@ -100,6 +129,9 @@ def my_func_rewriter(func_node):
     if func_name == "get_from_database":
         return ("function", "get_from_cache", args)
 
+    # this could check names against a known list and return
+    # an error if a function is not found
+    # in this case we're just checking for a known function to test throwing an error
     if func_name == "bad_infer":
         raise ValueError(
             f"Invalid Function: {func_name}"
@@ -110,6 +142,17 @@ def my_func_rewriter(func_node):
 # get function/rule names
 # clause{?X,?_}, ?X=..?F, ?F[ith(1)->?N]@\btp, ?N=hilog(?FN,?M).
 # clause{?X,?_}, ?X=..?F, ?F[ith(1)->?N]@\btp, ?N=hilog(?FN,?M), ?X[term2json->?J]@\json.
+
+
+ast = parser.infer_parse("?x=5, get_from_database(?id, ?value), ?x > 50.")
+print("Original AST:", ast)
+
+try:
+    new_ast = parser.transform_ast(ast, my_func_rewriter)
+    print("Transformed AST:", new_ast)
+except Exception as e:
+    print("Error:", e)
+
 
 # check for a bad / unknown function
 ast = parser.infer_parse("?x=5, get_from_database(?id, ?value), bad_infer(?q), ?x > 50.")

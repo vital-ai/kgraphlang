@@ -9,16 +9,30 @@ import re
 # TODO: add Not
 # TODO list comparisons (membership, subset)
 # TODO aggregate functions
+# TODO add math expressions
+
+# note: and expressions bind more tightly than or expressions
+# which is the typical behavior
 
 dsl_grammar = r"""
     start: expression "."
+        
+    expression: or_expression
     
-    expression: equality | or_group
+    or_expression: and_expression (";" and_expression)*
+    
+    and_expression: statement ("," statement)*
+            
+    statement: math_assign | equality | simple_expr
 
-    or_group: and_group (";" and_group)*
-    
-    and_group: term ("," term)*
-    
+    simple_expr: term
+
+    math_assign: VAR IS arith_expr
+
+    equality: value eq_op value
+
+    unification: VAR eq_op (arith_expr | typed_string | STRING | boolean | list | atom | aggregation_expr | function_call)
+        
     term: not_expr
         | typed_string
         | unification
@@ -27,23 +41,16 @@ dsl_grammar = r"""
         | aggregation_expr
         | function_call
         | group
-        | VAR
-        | STRING
-        | NUMBER
-        | boolean
-        | list
         | atom
+        | STRING
 
     not_expr: "not" "(" expression ")"
 
     group: "(" expression ")"
 
-    unification: VAR "=" (VAR | NUMBER | typed_string | STRING | boolean | list | atom | aggregation_expr)
-
-    equality: value eq_op value
     eq_op: EQUAL
 
-    aggregation_expr: aggregate_operator LBRACE VAR  PIPE  agg_body RBRACE
+    aggregation_expr: aggregate_operator LBRACE VAR PIPE agg_body RBRACE
     agg_body: expression ("," expression)*
 
     comparison: value COMPARE value
@@ -56,9 +63,20 @@ dsl_grammar = r"""
     list_expr: VAR | list
     
     function_call: NAME "(" [func_arg ("," func_arg)*] ")"
-    func_arg: function_call | VAR | typed_string | STRING | NUMBER | boolean | list
+    func_arg: function_call | typed_string | STRING | boolean | list | arith_expr
 
-    value: VAR | NUMBER | typed_string | STRING | boolean | list | aggregation_expr
+    ?arith_expr: arith_expr "+" arith_term   -> add
+           | arith_expr "-" arith_term   -> sub
+           | arith_term
+    arith_term: arith_term "*" arith_factor   -> mul
+          | arith_term "/" arith_factor   -> div
+          | arith_factor
+    arith_factor: NUMBER                      -> number
+            | VAR                         -> var
+            | "(" arith_expr ")"          -> a_group
+            
+
+    value: arith_expr | typed_string | STRING | boolean | list | function_call | aggregation_expr
 
     boolean: TRUE | FALSE
 
@@ -71,7 +89,8 @@ dsl_grammar = r"""
     typed_string: DATE | DATE_TIME | TIME | DURATION | CURRENCY | URI
     
     aggregate_operator: COLLECTION | SET | AVERAGE | SUM | MIN | MAX | COUNT
-        
+      
+    IS: "is"  
     PIPE: "|"
     COLLECTION: "collection"
     SET: "set"
@@ -100,8 +119,6 @@ dsl_grammar = r"""
     IN: "in"
     SUBSET: "subset"
     
-    AGG_OP: "collection" | "set" | "average" | "sum" | "min" | "max" | "count"
-
     NUMBER: /-?[0-9]+(\.[0-9]+)?/
     COMPARE: ">" | "<" | ">=" | "<=" | "==" | "!="
     
@@ -118,21 +135,67 @@ class KGraphTransformer(Transformer):
         return items[0]
 
     def expression(self, items):
-        # items: either [or_group] or [or_group, EQUAL, or_group]
+        # If there's only one item, return it; if multiple, return an OR node.
         if len(items) == 1:
             return items[0]
-        else:
-            lhs, _, rhs = items
-            if isinstance(lhs, str) and lhs.startswith("?"):
-                return ("unify", lhs, "=", rhs)
-            else:
-                return ("equal", lhs, rhs)
+        return ("OR", items)
 
-    def or_group(self, items):
-        return ("OR", items) if len(items) > 1 else items[0]
+    def or_expression(self, items):
+        if len(items) == 1:
+            return items[0]
+        return ("OR", items)
 
-    def and_group(self, items):
-        return ("AND", items) if len(items) > 1 else items[0]
+    def and_expression(self, items):
+        if len(items) == 1:
+            # Implicitly group a single simple_expr.
+            return ("GROUP", items[0])
+        return ("AND", items)
+
+    def statement(self, items):
+        return items[0]
+
+    def simple_expr(self, items):
+        return items[0]
+
+    def unification(self, items):
+        # Expect three items: left, EQUAL, right.
+        left, _, right = items
+        return ("unify", left, "=", right)
+
+    def equality(self, items):
+        # [value, EQUAL, value]
+        return ("equal", items[0], items[2])
+
+    def math_assign(self, items):
+        # [VAR, IS, arith_expr]
+        return ("math_assign", items[0], items[2])
+
+    def add(self, items):
+        return ("add", items[0], items[1])
+
+    def sub(self, items):
+        return ("sub", items[0], items[1])
+
+    def mul(self, items):
+        return ("mul", items[0], items[1])
+
+    def div(self, items):
+        return ("div", items[0], items[1])
+
+    def number(self, items):
+        return items[0]
+
+    def var(self, items):
+        return items[0]
+
+    def a_group(self, items):
+        return items[0]
+
+    def arith_term(self, items):
+        return items[0]
+
+    def arith_expr(self, items):
+        return items[0]
 
     def group(self, items):
         return ("GROUP", items[0])
@@ -142,14 +205,6 @@ class KGraphTransformer(Transformer):
 
     def not_expr(self, items):
         return ("not", items[0])
-
-    def unification(self, items):
-        left, right = items
-        return ("unify", left, "=", right)
-
-    def equality(self, items):
-        left, _, right = items  # The "=" token is skipped.
-        return ("equal", left, right)
 
     def comparison(self, items):
         left, operator, right = items
@@ -162,7 +217,11 @@ class KGraphTransformer(Transformer):
 
     def function_call(self, items):
         name, *args = items
-        # (optional) check for nested calls if disallowed
+        for arg in args:
+            # Check if an argument is already a function call node.
+            if isinstance(arg, tuple) and arg[0] == "function":
+                raise ValueError(f"Nested function calls are disallowed: found nested call in {name}().")
+
         return ("function", str(name), args)
 
     def func_arg(self, items):
@@ -291,6 +350,9 @@ class KGraphTransformer(Transformer):
     def AGG_OP(self, token):
         return token
 
+    def IS(self, token):
+        return token.value
+
 
 class KGraphInferParser:
 
@@ -311,10 +373,10 @@ class KGraphInferParser:
         """
         Convert the parse tree (AST) to a DSL string + final period.
         """
-        body = self.ast_to_dsl(node)
+        body = self.ast_to_dsl(node, top_level=True)
         return body + "."
 
-    def ast_to_dsl(self, node):
+    def ast_to_dsl(self, node, top_level=False):
         """
         Convert the AST node (the structure returned by KGraphTransformer)
         back into a DSL string. This won't reproduce original whitespace or comments,
@@ -322,22 +384,18 @@ class KGraphInferParser:
         """
         # 1) If it's a tuple, check its "tag" (the first element) to decide how to handle:
         if isinstance(node, tuple):
+
             tag = node[0]
 
-            if tag == "AND":
-                # node = ('AND', [item1, item2, ...])
-                items = node[1]
-                return ", ".join(self.ast_to_dsl(i) for i in items)
-
-            elif tag == "OR":
-                # node = ('OR', [group1, group2, ...])
-                items = node[1]
-                return "; ".join(self.ast_to_dsl(i) for i in items)
-
+            if tag == "OR":
+                return "; ".join(self.ast_to_dsl(s) for s in node[1])
+            elif tag == "AND":
+                return ", ".join(self.ast_to_dsl(s) for s in node[1])
+            elif tag == "math_assign":
+                return f"{self.ast_to_dsl(node[1])} is {self.ast_to_dsl(node[2])}"
             elif tag == "not":
                 # node = ("not", expr)
                 return f"not({self.ast_to_dsl(node[1])})"
-
             elif tag == "unify":
                 # For unification (assignment), left-hand side is a variable.
                 return f"{self.ast_to_dsl(node[1])} = {self.ast_to_dsl(node[3])}"
@@ -360,8 +418,10 @@ class KGraphInferParser:
                 return f"{func_name}({arg_str})"
 
             elif tag == "GROUP":
-                # node = ('GROUP', subexpr)
-                return f"({self.ast_to_dsl(node[1])})"
+                if top_level:
+                    return self.ast_to_dsl(node[1], top_level=True)
+                else:
+                    return f"({self.ast_to_dsl(node[1], top_level=False)})"
 
             elif tag == "atom":
                 # node = ('atom', 'a')
@@ -388,6 +448,14 @@ class KGraphInferParser:
                 var = node[2]
                 body = ", ".join(self.ast_to_dsl(exp) for exp in node[3])
                 return f"{op}{{ {var} | {body} }}"
+            elif tag == "add":
+                return f"{self.ast_to_dsl(node[1])} + {self.ast_to_dsl(node[2])}"
+            elif tag == "sub":
+                return f"{self.ast_to_dsl(node[1])} - {self.ast_to_dsl(node[2])}"
+            elif tag == "mul":
+                return f"{self.ast_to_dsl(node[1])} * {self.ast_to_dsl(node[2])}"
+            elif tag == "div":
+                return f"{self.ast_to_dsl(node[1])} / {self.ast_to_dsl(node[2])}"
             else:
                 # fallback
                 return str(node)
