@@ -6,3 +6,6 @@ dist
 **/.ergo_aux_files
 ergo
 **/*.yaml
+**/.DS_Store
+**/*.flr
+**/*.jsonl

@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='kgraphinfer',
-    version='0.0.7',
+    version='0.0.8',
     author='Marc Hadfield',
     author_email='marc@vital.ai',
     description='Kgraph Infer',
@@ -12,6 +12,9 @@ setup(
     packages=find_packages(exclude=["test", "test_data"]),
     license='Apache License 2.0',
     install_requires=[
+
+        'numpy',
+        'hnswlib',
 
         'lark>=1.2.2',
 

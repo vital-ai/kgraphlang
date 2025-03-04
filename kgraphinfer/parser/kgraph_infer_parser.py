@@ -15,7 +15,7 @@ import re
 # note: AND expressions bind more tightly than OR expressions
 # which is the typical behavior
 
-dsl_grammar = r"""
+kgraph_grammar = r"""
     start: expression "."
     
     expression: or_expression
@@ -38,7 +38,7 @@ dsl_grammar = r"""
         | boolean 
         | bracketed_collection 
         | aggregation_expr 
-        | function_call)
+        | predicate_call)
     
     term: not_expr
         | typed_string
@@ -46,7 +46,7 @@ dsl_grammar = r"""
         | comparison
         | list_comparison
         | aggregation_expr
-        | function_call
+        | predicate_call
         | group
         | atom
         | STRING
@@ -102,8 +102,8 @@ dsl_grammar = r"""
         | bracketed_collection 
         | atom
         
-    function_call: NAME "(" [func_arg ("," func_arg)*] ")"
-    func_arg: function_call 
+    predicate_call: NAME "(" [predicate_arg ("," predicate_arg)*] ")"
+    predicate_arg: predicate_call 
         | typed_string 
         | STRING 
         | boolean 
@@ -125,7 +125,7 @@ dsl_grammar = r"""
         | STRING 
         | boolean 
         | bracketed_collection 
-        | function_call 
+        | predicate_call 
         | aggregation_expr
 
     boolean: TRUE | FALSE
@@ -260,16 +260,16 @@ class KGraphTransformer(Transformer):
             )
         return ("compare", left, str(operator), right)
 
-    def function_call(self, items):
+    def predicate_call(self, items):
         name, *args = items
         for arg in args:
-            # Check if an argument is already a function call node.
-            if isinstance(arg, tuple) and arg[0] == "function":
-                raise ValueError(f"Nested function calls are disallowed: found nested call in {name}().")
+            # Check if an argument is already a predicate call node.
+            if isinstance(arg, tuple) and arg[0] == "predicate":
+                raise ValueError(f"Nested predicate calls are disallowed: found nested call in {name}().")
 
-        return ("function", str(name), args)
+        return ("predicate", str(name), args)
 
-    def func_arg(self, items):
+    def predicate_arg(self, items):
         return items[0]
 
     def TRUE(self, _):
@@ -431,7 +431,7 @@ class KGraphTransformer(Transformer):
 class KGraphInferParser:
 
     def __init__(self):
-        self.parser = Lark(dsl_grammar, parser="lalr")
+        self.parser = Lark(kgraph_grammar, parser="lalr")
         self.transformer = KGraphTransformer()
 
     def infer_parse(self, kgraph_infer: str):
@@ -483,12 +483,12 @@ class KGraphInferParser:
                 operator = node[2]
                 right_side = self.ast_to_dsl(node[3])
                 return f"{left_side} {operator} {right_side}"
-            elif tag == "function":
-                # node = ('function', name_string, [arg1, arg2, ...])
-                func_name = node[1]
+            elif tag == "predicate":
+                # node = ('predicate', name_string, [arg1, arg2, ...])
+                predicate_name = node[1]
                 args = node[2]
                 arg_str = ", ".join(self.ast_to_dsl(a) for a in args)
-                return f"{func_name}({arg_str})"
+                return f"{predicate_name}({arg_str})"
 
             elif tag == "GROUP":
                 if top_level:
@@ -579,13 +579,13 @@ class KGraphInferParser:
         else:
             return str(node)
 
-    def transform_ast(self, ast, func_call_transform):
+    def transform_ast(self, ast, predicate_call_transform):
         """
-        Recursively walk the already-transformed AST, applying 'func_call_transform'
-        whenever we see a function call.
+        Recursively walk the already-transformed AST, applying 'predicate_call_transform'
+        whenever we see a predicate call.
 
         :param ast: The (tuple, list, or basic type) AST returned by query_parse().
-        :param func_call_transform: A function that takes a ("function", name, args) node
+        :param predicate_call_transform: A function that takes a ("predicate", name, args) node
                                    and returns a (possibly modified) node.
 
         :return: A new (or mutated) AST node with child nodes transformed.
@@ -595,42 +595,42 @@ class KGraphInferParser:
         if isinstance(ast, tuple):
             tag = ast[0]
 
-            if tag == "function":
-                # ast = ("function", func_name, [arg1, arg2, ...])
-                func_name = ast[1]
+            if tag == "predicate":
+                # ast = ("predicate", predicate_name, [arg1, arg2, ...])
+                predicate_name = ast[1]
                 args = ast[2]
 
                 # Recursively transform each argument in case they are sub-ASTs.
-                new_args = [self.transform_ast(a, func_call_transform) for a in args]
-                # Build a new function node with transformed arguments
-                new_func_node = ("function", func_name, new_args)
+                new_args = [self.transform_ast(a, predicate_call_transform) for a in args]
+                # Build a new predicate node with transformed arguments
+                new_predicate_node = ("predicate", predicate_name, new_args)
 
                 # Now let the user callback decide how/if to modify this call.
-                return func_call_transform(new_func_node)
+                return predicate_call_transform(new_predicate_node)
 
             elif tag in ("AND", "OR"):
                 # e.g. ("AND", [item1, item2, ...]) or ("OR", [item1, item2, ...])
                 items = ast[1]
-                new_items = [self.transform_ast(i, func_call_transform) for i in items]
+                new_items = [self.transform_ast(i, predicate_call_transform) for i in items]
                 return (tag, new_items)
 
             elif tag == "unify":
                 var_name = ast[1]
                 eq = ast[2]
                 right_side = ast[3]
-                new_right_side = self.transform_ast(right_side, func_call_transform)
+                new_right_side = self.transform_ast(right_side, predicate_call_transform)
                 return ("unify", var_name, eq, new_right_side)
 
             elif tag == "compare":
                 left = ast[1]
                 op = ast[2]
                 right = ast[3]
-                new_right = self.transform_ast(right, func_call_transform)
+                new_right = self.transform_ast(right, predicate_call_transform)
                 return ("compare", left, op, new_right)
 
             elif tag == "GROUP":
                 subexpr = ast[1]
-                new_subexpr = self.transform_ast(subexpr, func_call_transform)
+                new_subexpr = self.transform_ast(subexpr, predicate_call_transform)
                 return ("GROUP", new_subexpr)
 
             elif tag == "atom":
@@ -639,12 +639,12 @@ class KGraphInferParser:
                 return ast
 
             elif tag == "not":
-                new_expr = self.transform_ast(ast[1], func_call_transform)
+                new_expr = self.transform_ast(ast[1], predicate_call_transform)
                 return ("not", new_expr)
 
             return ast
 
         elif isinstance(ast, list):
-            return [self.transform_ast(item, func_call_transform) for item in ast]
+            return [self.transform_ast(item, predicate_call_transform) for item in ast]
 
         return ast
