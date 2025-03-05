@@ -37,6 +37,10 @@ def main():
 
         "'2023-02-18'^Date >= '2023-02-18'^Date.",
 
+        "?X = '40.7128,-74.0060'^GeoLocation.",
+
+        "?X = '100.0'^Unit('http://qudt.org/vocab/unit/kg').",
+
         "'2023-02-18'^Date >= ?event_date.",
 
         "?event_datetime = '2023-02-18T14:00:00'^DateTime.",

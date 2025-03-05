@@ -2,7 +2,6 @@ from kgraphinfer.filter_infer.filter_predicate import FilterPredicate
 from kgraphinfer.kgraph_infer import KGraphInfer
 from kgraphinfer.parser.kgraph_infer_parser import KGraphInferParser
 
-
 class PersonPredicate(FilterPredicate):
     def get_candidates(self):
         # Each candidate is a 1-tuple representing a person.
@@ -26,7 +25,6 @@ class GetEmailPredicate(FilterPredicate):
             ("Bob", "bob@example.com"),
             ("Charlie", "charlie@example.com")
         ]
-
 
 class GetPropertyPredicate(FilterPredicate):
     """
@@ -94,11 +92,68 @@ get_email(?Person, ?E),
 
     evaluator = KGraphInfer(PREDICATE_REGISTRY)
 
-    results = evaluator.run(kgquery_parsed)
+    answer_set = evaluator.execute(kgquery_parsed)
 
     print("Answers:")
 
-    for answer in results:
+    for answer in answer_set.get_results():
+        print(answer)
+
+    # person(?X),
+    # get_property(?X, 'age', ?Value),
+    # ?Value >= 35,
+    # ?L in [1,2,3,4,5],
+    # [ ?k = ?v ] in ['key1' = 'value1', 'key2' = 'value2'],
+    # ?S subset ['a' = 1, 'b' = 2, 'c' = 3],
+    # [ 'a' = 1, 'b' = 5 ] subset ['a' = 1, 'b' = 2, 'c' = 3].
+    # [ ?k1 = ?v1, ?k2 = ?v2, ?k3 = ?v3 ] subset ['a' = 1, 'b' = 2, 'c' = 3, 'd' = 4, 'e' = 5, 'f' = 6, 'g' = 7].
+
+    # person(?X),
+    # get_property(?X, 'age', ?Value),
+    #     ?Value >= 35.
+
+    kgquery = """
+    // ?Birth = '1990-01-01'^Date,
+    // ?Birth < '2000-01-01'^Date,
+    // ?EventTime = '2023-02-18T14:00:00'^DateTime,
+    // ?EventTime >= '2023-02-18T00:00:00'^DateTime,
+    // ?Start = '08:00:00'^Time,
+    // ?End = '17:00:00'^Time,
+    // ?Start < ?End,
+    // ?Duration = 'PT1H30M'^Duration,
+    // ?Duration >= 'PT1H'^Duration,
+    // ?Price = '19.99'^Currency(USD),
+    // ?Price > '10.00'^Currency(USD),
+    // ?Website = 'https://example.com'^URI,
+    // ?Website == 'https://example.com'^URI,
+    // ?Mass = '100.0'^Unit('http://qudt.org/vocab/unit/kg'),
+    // ?Mass > '50.0'^Unit('http://qudt.org/vocab/unit/kg'),
+    // ?Location = '40.7128,-74.0060'^GeoLocation,
+    // ?Location == '40.7128,-74.0060'^GeoLocation,
+    // 'generic string' == 'generic string',
+    // 'apple' < 'zebra',
+    // 42 > 10.
+    
+    person(?X),
+    get_property(?X, 'age', ?Value),
+    // 1 > 2,
+    ?Value >= 5,
+    ?Value < 40.
+"""
+
+    kgquery_parsed = parser.infer_parse(kgquery)
+
+    print(kgquery_parsed)
+
+    evaluator = KGraphInfer(PREDICATE_REGISTRY)
+
+    answer_set = evaluator.execute(kgquery_parsed)
+
+    print(answer_set)
+
+    print("Answers:")
+
+    for answer in answer_set.get_results():
         print(answer)
 
 

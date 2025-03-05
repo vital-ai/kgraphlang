@@ -132,7 +132,7 @@ kgraph_grammar = r"""
 
     atom: NAME
     
-    typed_string: DATE | DATE_TIME | TIME | DURATION | CURRENCY | URI
+    typed_string: DATE | DATE_TIME | TIME | DURATION | CURRENCY | URI | UNIT | GEO_LOCATION
     
     aggregate_operator: COLLECTION | SET | AVERAGE | SUM | MIN | MAX | COUNT
       
@@ -159,7 +159,9 @@ kgraph_grammar = r"""
     DURATION:  /'[^']*'\^Duration/
     CURRENCY:  /'[^']*'\^Currency\([A-Z]+\)/
     URI:       /'[^']*'\^URI/
-    
+    UNIT: /'[^']*'\^Unit\('[^']*'\)/
+    GEO_LOCATION: /'[^']*'\^GeoLocation/
+
     VAR: "?" /[a-zA-Z0-9_]+/
     
     IN: "in"
@@ -173,6 +175,15 @@ kgraph_grammar = r"""
     
     %import common.WS
     %ignore WS
+    
+    // Single-line comments (// comment until end of line)
+    COMMENT: /\/\/[^\n]*/
+    %ignore COMMENT
+
+    // Multi-line comments (/* comment until */)
+    MULTILINE_COMMENT: /\/\*(.|\n)*?\*\//
+    %ignore MULTILINE_COMMENT
+    
 """
 
 class KGraphTransformer(Transformer):
@@ -412,6 +423,47 @@ class KGraphTransformer(Transformer):
             code = None
         return ("currency", inner, code)
 
+    def GEO_LOCATION(self, token):
+        # Example token.value: "'40.7128,-74.0060'^GeoLocation"
+        val = token.value
+        try:
+            # Extract the inner content from the initial single quotes.
+            inner = val[1: val.index("'^")]
+            # Split the inner value on a comma.
+            parts = inner.split(',')
+            if len(parts) != 2:
+                raise ValueError(
+                    "GeoLocation must contain exactly two comma-separated values (latitude and longitude).")
+            lat = float(parts[0].strip())
+            lon = float(parts[1].strip())
+        except Exception as e:
+            raise ValueError(f"Error parsing GeoLocation token: {e}")
+        return ("geolocation", lat, lon)
+
+    def UNIT(self, token):
+        # token.value example: "'100.0'^Unit('http://qudt.org/vocab/unit/kg')"
+        val = token.value
+        try:
+            # The numeric value is enclosed in the first pair of single quotes.
+            # Find the second single quote.
+            numeric_end = val.index("'", 1)
+            numeric_value = val[1:numeric_end]
+
+            # Find the literal "^Unit(" starting after the numeric value.
+            prefix = "^Unit("
+            prefix_index = val.index(prefix, numeric_end)
+
+            # After ^Unit(, there should be a single quote.
+            unit_quote_start = prefix_index + len(prefix)
+            if val[unit_quote_start] != "'":
+                raise ValueError("Expected single quote for unit id")
+            # Find the closing single quote for the unit URI.
+            unit_quote_end = val.index("'", unit_quote_start + 1)
+            unit_uri = val[unit_quote_start + 1: unit_quote_end]
+        except Exception as e:
+            raise ValueError(f"Error parsing UNIT token: {e}")
+        return ("unit", numeric_value, unit_uri)
+
     def typed_string(self, items):
         return items[0]
 
@@ -525,6 +577,10 @@ class KGraphInferParser:
                 return f"'{node[1]}'^URI"
             elif tag == "currency":
                 return f"'{node[1]}'^Currency({node[2]})"
+            elif tag == "unit":
+                return f"'{node[1]}'^Unit(\"{node[2]}\")"
+            elif tag == "geolocation":
+                return f"'{node[1]},{node[2]}'^GeoLocation"
             elif tag == "in":
                 return f"{self.ast_to_dsl(node[1])} in {self.ast_to_dsl(node[2])}"
             elif tag == "subset":
