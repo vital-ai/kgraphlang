@@ -3,12 +3,19 @@ from enum import Enum
 import isodate
 import datetime
 
+from kgraphinfer.parser.kgraph_infer_parser import KGraphInferParser
+
 UNBOUND = object()
 
 class EvalResult(Enum):
     YES = "Yes"
     NO = "No"
     UNKNOWN = "Unknown"
+
+    def __str__(self):
+        return f"<{self.value}>"
+    def __repr__(self):
+        return self.__str__()
 
 class BindingStack:
     """
@@ -84,11 +91,7 @@ class AnswerSet:
 
 # TODO
 # atoms (a,b,c) eval?  lookup for existence?
-
-# TODO
 # better exception and error handling
-
-# TODO
 # built in predicates:
 # random()
 
@@ -99,6 +102,8 @@ class KGraphInfer:
     in an AnswerSet.
     """
     def __init__(self, predicate_registry: dict):
+
+        self.parser = KGraphInferParser()
         self.predicate_registry = predicate_registry
 
     def _compare_generic(self, a, b, operator):
@@ -642,9 +647,16 @@ class KGraphInfer:
 
         return answer_set
 
-    def execute(self, ast):
+    def execute(self, kg_query: str):
+
+        kgquery_parsed = self.parser.infer_parse(kg_query)
+
+        print(kgquery_parsed)
+
         initial_binding = BindingStack()
-        answer_set = self._evaluate(ast, initial_binding)
+
+        answer_set = self._evaluate(kgquery_parsed , initial_binding)
+
         return answer_set
 
     ################################################################

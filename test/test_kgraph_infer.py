@@ -41,7 +41,7 @@ class GetPropertyPredicate(FilterPredicate):
 
 
 # Registry mapping predicate names (as in the AST) to predicate objects.
-PREDICATE_REGISTRY = {
+predicate_registry = {
     "person": PersonPredicate(),
     "enemy": EnemyPredicate(),
     "frenemy": FrenemyPredicate(),
@@ -54,9 +54,7 @@ PREDICATE_REGISTRY = {
 def main():
     print("Test KGraph Infer")
 
-    parser = KGraphInferParser()
-
-    kgquery = """
+    kg_query = """
 person(?X), 
 not( ( enemy(?X); frenemy(?X) ) ), 
 get_email(?X, ?M), 
@@ -86,13 +84,11 @@ get_email(?Person, ?E),
 }.
 """
 
-    kgquery_parsed = parser.infer_parse(kgquery)
+    infer = KGraphInfer(predicate_registry)
 
-    print(kgquery_parsed)
+    answer_set = infer.execute(kg_query)
 
-    evaluator = KGraphInfer(PREDICATE_REGISTRY)
-
-    answer_set = evaluator.execute(kgquery_parsed)
+    print(answer_set)
 
     print("Answers:")
 
@@ -112,7 +108,7 @@ get_email(?Person, ?E),
     # get_property(?X, 'age', ?Value),
     #     ?Value >= 35.
 
-    kgquery = """
+    kg_query = """
     // ?Birth = '1990-01-01'^Date,
     // ?Birth < '2000-01-01'^Date,
     // ?EventTime = '2023-02-18T14:00:00'^DateTime,
@@ -141,21 +137,18 @@ get_email(?Person, ?E),
     ?Value < 40.
 """
 
-    kgquery_parsed = parser.infer_parse(kgquery)
-
-    print(kgquery_parsed)
-
-    evaluator = KGraphInfer(PREDICATE_REGISTRY)
-
-    answer_set = evaluator.execute(kgquery_parsed)
+    answer_set = infer.execute(kg_query)
 
     print(answer_set)
+
+    success = answer_set.get_eval_result()
+
+    print(f"Eval result: {success}")
 
     print("Answers:")
 
     for answer in answer_set.get_results():
         print(answer)
-
 
 if __name__ == "__main__":
     main()
