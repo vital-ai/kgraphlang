@@ -90,6 +90,7 @@ def main():
 
         "(a;b;c),(d,f).",
 
+
         "outer(inner(?x)).",
         # this should not parse because aggregation can't directly be included in a math function
         "?x is ?y + count{ ?item | ?item in ['apple', 'orange', 'banana', 'grape', 'pear'] }.",
@@ -112,6 +113,19 @@ def main():
         "?sum = sum{ ?v | [ ?k = ?v ] in [ 'k1' = 10, 'k2' = 15, 'k3' = 20 ] }.",
 
         "?k = 'answer', ?m = [ 'urn:uri_prop'^URI = 'urn:123'^URI, ?k = 42 ].",
+
+        '?X = "hello".',
+
+        # multi-line string mainly would come up in unification cases,
+        # but it should work in the same places as double/single quoted string
+
+        '''?X = """hello
+there
+how
+are
+you?
+""", ?Y = "Great!".    
+        ''',
 
         # a Map is a collection of entries of k=v, with unique k
         # a Map can be compared with another Map via "subset"

@@ -107,6 +107,21 @@ class KGraphInfer:
         self.predicate_registry = predicate_registry
 
     def _compare_generic(self, a, b, operator):
+
+        # checking for type comparisons
+        if isinstance(a, bool) and isinstance(b, bool):
+            if operator not in ("==", "!="):
+                raise ValueError("For booleans, only (in)equality comparisons are allowed")
+
+        if isinstance(a, list) and isinstance(b, list):
+            if operator not in ("==", "!="):
+                raise ValueError("For lists, only (in)equality comparisons are allowed")
+
+        if isinstance(a, dict) and isinstance(b, dict):
+            if operator not in ("==", "!="):
+                raise ValueError("For maps, only (in)equality comparisons are allowed")
+
+        # default to generic python handling
         if operator == ">":
             return a > b
         elif operator == "<":
@@ -201,18 +216,18 @@ class KGraphInfer:
                         left_val[1] != right_val[1] or left_val[2] != right_val[2])
 
         elif left_type == "unit":
-         # If the unit URIs differ, then they are not comparable.
-         if left_val[2] != right_val[2]:
-              raise ValueError("Cannot compare unit values with different unit types")
-         # Attempt to convert the unit values to floats.
-         try:
-              left_num = float(left_val[1])
-              right_num = float(right_val[1])
-         except Exception:
-              # Fall back to lexicographical comparison if conversion fails.
-              left_num = left_val[1]
-              right_num = right_val[1]
-         return self._compare_generic(left_num, right_num, operator)
+            # If the unit URIs differ, then they are not comparable.
+            if left_val[2] != right_val[2]:
+                  raise ValueError("Cannot compare unit values with different unit types")
+            # Attempt to convert the unit values to floats.
+            try:
+                 left_num = float(left_val[1])
+                 right_num = float(right_val[1])
+            except Exception:
+                  # Fall back to lexicographical comparison if conversion fails.
+                  left_num = left_val[1]
+                  right_num = right_val[1]
+            return self._compare_generic(left_num, right_num, operator)
 
         elif left_type == "currency":
             if left_val[2] != right_val[2]:
@@ -223,6 +238,8 @@ class KGraphInfer:
             except Exception as e:
                 raise ValueError(f"Error parsing currency amounts: {e}")
             return self._compare_generic(left_amt, right_amt, operator)
+
+        # pass-thru cases like list, map
         else:
             return self._compare_generic(left_val[1], right_val[1], operator)
 

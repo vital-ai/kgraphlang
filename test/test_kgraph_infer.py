@@ -1,6 +1,5 @@
 from kgraphinfer.filter_infer.filter_predicate import FilterPredicate
 from kgraphinfer.kgraph_infer import KGraphInfer
-from kgraphinfer.parser.kgraph_infer_parser import KGraphInferParser
 
 class PersonPredicate(FilterPredicate):
     def get_candidates(self):
@@ -38,7 +37,6 @@ class GetPropertyPredicate(FilterPredicate):
             ("Bob", "age", 35),
             ("Charlie", "age", 40)
         ]
-
 
 # Registry mapping predicate names (as in the AST) to predicate objects.
 predicate_registry = {
@@ -133,6 +131,9 @@ get_email(?Person, ?E),
     person(?X),
     get_property(?X, 'age', ?Value),
     // 1 > 2,
+    // [1,2,5] != [1,2,3],
+    // [ 'k1' = 5 ] > [ 'k2' = 3 ],
+    
     ?Value >= 5,
     ?Value < 40.
 """

@@ -15,7 +15,11 @@ import re
 # note: AND expressions bind more tightly than OR expressions
 # which is the typical behavior
 
+#     STRING: "'" /[^']*/ "'"
+#     STRING: SINGLE_QUOTED_STRING | DOUBLE_QUOTED_STRING
+
 kgraph_grammar = r"""
+    
     start: expression "."
     
     expression: or_expression
@@ -34,7 +38,9 @@ kgraph_grammar = r"""
 
     unification: VAR eq_op (arith_expr 
         | typed_string 
-        | STRING 
+        | SINGLE_QUOTED_STRING
+        | DOUBLE_QUOTED_STRING
+        | TRIPLE_DQ_STRING
         | boolean 
         | bracketed_collection 
         | aggregation_expr 
@@ -49,7 +55,9 @@ kgraph_grammar = r"""
         | predicate_call
         | group
         | atom
-        | STRING
+        | SINGLE_QUOTED_STRING
+        | DOUBLE_QUOTED_STRING
+        | TRIPLE_DQ_STRING
 
     not_expr: "not" "(" expression ")"
 
@@ -81,10 +89,12 @@ kgraph_grammar = r"""
 
     map_item: map_key "=" map_value
     
-    map_key: URI | STRING | VAR
+    map_key: URI | SINGLE_QUOTED_STRING | DOUBLE_QUOTED_STRING | TRIPLE_DQ_STRING | VAR
     
     map_value: VAR 
-             | STRING 
+             | SINGLE_QUOTED_STRING
+             | DOUBLE_QUOTED_STRING
+             | TRIPLE_DQ_STRING  
              | NUMBER 
              | typed_string 
              | boolean 
@@ -95,7 +105,9 @@ kgraph_grammar = r"""
     list_item: list_value
     
     list_value: VAR 
-        | STRING 
+        | SINGLE_QUOTED_STRING
+        | DOUBLE_QUOTED_STRING 
+        | TRIPLE_DQ_STRING
         | NUMBER
         | typed_string 
         | boolean 
@@ -105,7 +117,9 @@ kgraph_grammar = r"""
     predicate_call: NAME "(" [predicate_arg ("," predicate_arg)*] ")"
     predicate_arg: predicate_call 
         | typed_string 
-        | STRING 
+        | SINGLE_QUOTED_STRING
+        | DOUBLE_QUOTED_STRING 
+        | TRIPLE_DQ_STRING 
         | boolean 
         | bracketed_collection 
         | arith_expr
@@ -122,7 +136,9 @@ kgraph_grammar = r"""
             
     value: arith_expr 
         | typed_string 
-        | STRING 
+        | SINGLE_QUOTED_STRING
+        | DOUBLE_QUOTED_STRING
+        | TRIPLE_DQ_STRING   
         | boolean 
         | bracketed_collection 
         | predicate_call 
@@ -171,7 +187,12 @@ kgraph_grammar = r"""
     COMPARE: ">" | "<" | ">=" | "<=" | "==" | "!="
     
     NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
-    STRING: "'" /[^']*/ "'"
+    
+    SINGLE_QUOTED_STRING: "'" /[^']+/ "'"
+    
+    DOUBLE_QUOTED_STRING: "\"" /[^"]+/ "\""
+    
+    TRIPLE_DQ_STRING: /\"\"\"[\s\S]*?\"\"\"/
     
     %import common.WS
     %ignore WS
@@ -183,7 +204,6 @@ kgraph_grammar = r"""
     // Multi-line comments (/* comment until */)
     MULTILINE_COMMENT: /\/\*(.|\n)*?\*\//
     %ignore MULTILINE_COMMENT
-    
 """
 
 class KGraphTransformer(Transformer):
@@ -264,11 +284,16 @@ class KGraphTransformer(Transformer):
 
     def comparison(self, items):
         left, operator, right = items
+
         # Because `value` excludes atoms, we only see: VAR, NUMBER, STRING, BOOLEAN, or list
-        if isinstance(right, bool) or isinstance(right, list):
-            raise ValueError(
-                f"Invalid comparison: {left} {operator} {right} (Cannot compare BOOLEAN or LIST values)"
-            )
+        if isinstance(right, bool) or isinstance(right, list) or isinstance(right, dict):
+
+            # allow not equal to
+            if operator != "!=":
+                raise ValueError(
+                    f"Invalid comparison: {left} {operator} {right} (Cannot compare BOOLEAN or LIST values)"
+                )
+
         return ("compare", left, str(operator), right)
 
     def predicate_call(self, items):
@@ -375,8 +400,20 @@ class KGraphTransformer(Transformer):
     def VAR(self, token):
         return str(token)
 
-    def STRING(self, token):
-        return token[1:-1]  # strip quotes
+    def SINGLE_QUOTED_STRING(self, token):
+        text = token[1:-1]
+        text = bytes(text, "utf-8").decode("unicode_escape")
+        return text
+
+    def DOUBLE_QUOTED_STRING(self, token):
+        text = token[1:-1]
+        text = bytes(text, "utf-8").decode("unicode_escape")
+        return text
+
+    def TRIPLE_DQ_STRING(self, token):
+        text = token[3:-3]
+        text = bytes(text, "utf-8").decode("unicode_escape")
+        return text
 
     def NUMBER(self, token):
         num_str = str(token)
@@ -622,6 +659,10 @@ class KGraphInferParser:
                 return node  # it's a variable
             else:
                 # We treat it as a DSL string => quote it
+                # we don't remember if something was originally a multi-line string
+                # but we can check for newlines and make it one
+                if "\n" in node or "\r" in node:
+                    return f'"""{node}"""'
                 return f"'{node}'"
 
         elif isinstance(node, bool):
