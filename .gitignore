@@ -9,3 +9,4 @@ ergo
 **/.DS_Store
 **/*.flr
 **/*.jsonl
+test_data/*
