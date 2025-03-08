@@ -2,13 +2,13 @@ from setuptools import setup, find_packages
 
 setup(
     name='kgraphlang',
-    version='0.0.8',
+    version='0.0.9',
     author='Marc Hadfield',
     author_email='marc@vital.ai',
     description='KGraph Lang',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
-    url='https://github.com/vital-ai/kgraphinfer',
+    url='https://github.com/vital-ai/kgraphlang',
     packages=find_packages(exclude=["test", "test_data"]),
     license='Apache License 2.0',
     install_requires=[
