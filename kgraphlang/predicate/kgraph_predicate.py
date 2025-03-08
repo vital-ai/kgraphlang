@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from kgraphinfer.kgraph_infer import UNBOUND, BindingStack
+from kgraphlang.kgraph_infer import UNBOUND, BindingStack
 
 class KGraphPredicate(ABC):
     def __init__(self):

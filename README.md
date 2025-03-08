@@ -1,1 +1,1 @@
-# kgraphinfer
+# kgraphlang

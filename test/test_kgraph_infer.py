@@ -1,5 +1,5 @@
-from kgraphinfer.filter_infer.filter_predicate import FilterPredicate
-from kgraphinfer.kgraph_infer import KGraphInfer
+from kgraphlang.filter_infer.filter_predicate import FilterPredicate
+from kgraphlang.kgraph_infer import KGraphInfer
 
 class PersonPredicate(FilterPredicate):
     def get_candidates(self):
@@ -47,7 +47,6 @@ predicate_registry = {
     "get_property": GetPropertyPredicate()
 
 }
-
 
 def main():
     print("Test KGraph Infer")
@@ -134,6 +133,8 @@ get_email(?Person, ?E),
     // [1,2,5] != [1,2,3],
     // [ 'k1' = 5 ] > [ 'k2' = 3 ],
     
+    [ ?k = ?v ] in ['key1' = 'value1', 'key2' = 'value2'],
+
     ?Value >= 5,
     ?Value < 40.
 """

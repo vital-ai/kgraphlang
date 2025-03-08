@@ -2,8 +2,7 @@ from itertools import combinations, permutations
 from enum import Enum
 import isodate
 import datetime
-
-from kgraphinfer.parser.kgraph_infer_parser import KGraphInferParser
+from kgraphlang.parser.kgraph_infer_parser import KGraphInferParser
 
 UNBOUND = object()
 

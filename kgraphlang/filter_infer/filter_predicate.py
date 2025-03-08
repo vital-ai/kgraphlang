@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
-from kgraphinfer.kgraph_infer import UNBOUND
-from kgraphinfer.predicate.kgraph_predicate import KGraphPredicate
+from kgraphlang.kgraph_infer import UNBOUND
+from kgraphlang.predicate.kgraph_predicate import KGraphPredicate
 
 
 class FilterPredicate(KGraphPredicate, ABC):

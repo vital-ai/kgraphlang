@@ -1,4 +1,4 @@
-from kgraphinfer.parser.kgraph_infer_parser import KGraphInferParser, KGraphTransformer
+from kgraphlang.parser.kgraph_infer_parser import KGraphInferParser, KGraphTransformer
 from lark import Tree, Token
 
 def main():

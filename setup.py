@@ -1,17 +1,19 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='kgraphinfer',
+    name='kgraphlang',
     version='0.0.8',
     author='Marc Hadfield',
     author_email='marc@vital.ai',
-    description='Kgraph Infer',
+    description='KGraph Lang',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     url='https://github.com/vital-ai/kgraphinfer',
     packages=find_packages(exclude=["test", "test_data"]),
     license='Apache License 2.0',
     install_requires=[
+
+        'SPARQLWrapper',
 
         'isodate',
 
