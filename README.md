@@ -234,6 +234,8 @@ A comprehensive query demonstrating multiple language features:
 ?name_prop = 'urn:name_prop'^URI,
 ?email_prop = 'urn:email_prop'^URI,
 
+?prop_list = [ ?uri_prop, ?name_prop, ?email_prop ],
+
 // get a list of person URIs from the KG
 person_uri_list(?PersonList), 
 
@@ -242,7 +244,6 @@ person_uri_list(?PersonList),
 ?PersonEmailMapList = collection { 
     ?PersonMapRecord | 
     ?Pid in ?PersonList,
-    ?prop_list = [ ?uri_prop, ?name_prop, ?email_prop ],
     // get the person info from the KG
     get_person_map(?Pid, ?prop_list, ?PersonMapRecord)
 }.
