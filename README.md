@@ -12,7 +12,7 @@ KGraphLang is both human friendly and easy for LLMs to generate.
 Features include:
 * Defining predicates which can be implemented via code or queries to an underlying data source.
 * Annotating predicates with extra-logical inputs like @topk(10) to control predicate output
-* Aggregations for collections, sum, average, max, min
+* Aggregations for collections, count, sum, average, max, min
 * Math functions for add, subtract, multiply, divide
 * Base datatypes: string, number, boolean
 * Data types for time, currency, geolocation, units, URIs
