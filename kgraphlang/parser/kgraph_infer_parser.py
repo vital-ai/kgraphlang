@@ -43,8 +43,8 @@ kgraph_grammar = r"""
         | TRIPLE_DQ_STRING
         | boolean 
         | bracketed_collection 
-        | aggregation_expr 
-        | predicate_call)
+        | aggregation_expr
+        | annotated_predicate) 
     
     term: not_expr
         | typed_string
@@ -52,7 +52,7 @@ kgraph_grammar = r"""
         | comparison
         | list_comparison
         | aggregation_expr
-        | predicate_call
+        | annotated_predicate
         | group
         | atom
         | SINGLE_QUOTED_STRING
@@ -114,6 +114,12 @@ kgraph_grammar = r"""
         | bracketed_collection 
         | atom
         
+        
+    annotated_predicate: annotation* predicate_call
+    annotation: "@" NAME annotation_args?
+    annotation_args: "(" [annotation_arg ("," annotation_arg)*] ")"
+    annotation_arg: value
+
     predicate_call: NAME "(" [predicate_arg ("," predicate_arg)*] ")"
     predicate_arg: predicate_call 
         | typed_string 
@@ -140,8 +146,8 @@ kgraph_grammar = r"""
         | DOUBLE_QUOTED_STRING
         | TRIPLE_DQ_STRING   
         | boolean 
-        | bracketed_collection 
-        | predicate_call 
+        | bracketed_collection
+        | annotated_predicate 
         | aggregation_expr
 
     boolean: TRUE | FALSE
@@ -296,6 +302,29 @@ class KGraphTransformer(Transformer):
 
         return ("compare", left, str(operator), right)
 
+    def annotated_predicate(self, items):
+        """
+        items: zero or more annotations followed by a predicate_call.
+        The last item is the predicate_call, and any items before that are annotations.
+        """
+        predicate = items[-1]
+        annotations = items[:-1]
+        return ("annotated_predicate", annotations, predicate)
+
+    def annotation(self, items):
+        """
+        items: [NAME, (optional) annotation arguments]
+        For example:
+            @deprecated("use new_predicate")
+        becomes: ("annotation", "deprecated", [ "use new_predicate" ])
+        """
+        # items[0] is the annotation name.
+        name = items[0]
+        args = items[1] if len(items) > 1 else []
+        # Flatten each argument if it is wrapped in a single-element list.
+        flat_args = [arg[0] if isinstance(arg, list) and len(arg) == 1 else arg for arg in args]
+        return ("annotation", name, flat_args)
+
     def predicate_call(self, items):
         name, *args = items
         for arg in args:
@@ -304,6 +333,14 @@ class KGraphTransformer(Transformer):
                 raise ValueError(f"Nested predicate calls are disallowed: found nested call in {name}().")
 
         return ("predicate", str(name), args)
+
+    def annotation_args(self, items):
+        # Return the list of annotation arguments.
+        return items
+
+    def annotation_arg(self, items):
+        # Simply return the value of the annotation argument.
+        return items[0] if len(items) == 1 else items
 
     def predicate_arg(self, items):
         return items[0]
@@ -589,7 +626,25 @@ class KGraphInferParser:
                 # node = ('atom', 'a')
                 return node[1]  # just return 'a'
 
-            if tag == "list":
+            elif tag == "annotated_predicate":
+                # node = ("annotated_predicate", annotations, predicate)
+                annotations = node[1]
+                predicate = node[2]
+                # Unparse each annotation and join them with a space before the predicate.
+                annotations_str = " ".join(self.ast_to_dsl(a) for a in annotations)
+                return f"{annotations_str} {self.ast_to_dsl(predicate)}".strip()
+
+            elif tag == "annotation":
+                # node = ("annotation", name, args)
+                name = node[1]
+                args = node[2]
+                if args:
+                    args_str = ", ".join(self.ast_to_dsl(arg) for arg in args)
+                    return f"@{name}({args_str})"
+                else:
+                    return f"@{name}"
+
+            elif tag == "list":
                 items = node[1]
                 rendered = ", ".join(self.ast_to_dsl(i) for i in items)
                 return f"[{rendered}]"

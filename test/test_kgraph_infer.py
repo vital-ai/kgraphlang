@@ -2,41 +2,58 @@ from kgraphlang.filter_infer.filter_predicate import FilterPredicate
 from kgraphlang.kgraph_infer import KGraphInfer
 
 class PersonPredicate(FilterPredicate):
-    def get_candidates(self):
-        # Each candidate is a 1-tuple representing a person.
-        return [("Alice",), ("Bob",), ("Charlie",)]
+
+    # Each candidate is a 1-tuple representing a person.
+    data = [("Alice",), ("Bob",), ("Charlie",)]
+
+    def __init__(self):
+        super().__init__(data=PersonPredicate.data)
 
 class EnemyPredicate(FilterPredicate):
-    def get_candidates(self):
-        # Each candidate is a 1-tuple representing an enemy.
-        return [("Bob",)]
+
+    # Each candidate is a 1-tuple representing an enemy.
+    data = [("Bob",)]
+
+    def __init__(self):
+        super().__init__(data=EnemyPredicate.data)
 
 class FrenemyPredicate(FilterPredicate):
-    def get_candidates(self):
-        # Each candidate is a 1-tuple representing a frenemy.
-        return [("Charlie",)]
+
+    # Each candidate is a 1-tuple representing a frenemy.
+    data = [("Charlie",)]
+
+    def __init__(self):
+        super().__init__(data=FrenemyPredicate.data)
 
 class GetEmailPredicate(FilterPredicate):
-    def get_candidates(self):
-        # Each candidate is a 2-tuple: (person, email)
-        return [
+
+    # Each candidate is a 2-tuple representing name, email.
+    data = [
             ("Alice", "alice@example.com"),
             ("Bob", "bob@example.com"),
             ("Charlie", "charlie@example.com")
         ]
+
+    def __init__(self):
+        super().__init__(data=GetEmailPredicate.data)
 
 class GetPropertyPredicate(FilterPredicate):
     """
     A predicate that retrieves a property value. For example, given a person and a property
     name (e.g. 'age'), it returns the corresponding value.
     """
-    def get_candidates(self):
-        # Each candidate is a 3-tuple: (person, property_name, value)
-        return [
+
+    # Each candidate is a 3-tuple representing name, property, value.
+
+    data = [
             ("Alice", "age", 25),
             ("Bob", "age", 35),
             ("Charlie", "age", 40)
         ]
+
+    def __init__(self):
+        super().__init__(data=GetPropertyPredicate.data)
+
 
 # Registry mapping predicate names (as in the AST) to predicate objects.
 predicate_registry = {
@@ -52,8 +69,8 @@ def main():
     print("Test KGraph Infer")
 
     kg_query = """
-person(?X), 
-not( ( enemy(?X); frenemy(?X) ) ), 
+@limit("5") person(?X), 
+not( ( @limit("5") enemy(?X); frenemy(?X) ) ), 
 get_email(?X, ?M), 
 get_property(?X, 'age', ?Value),
 ?Age = ?Value,
@@ -64,14 +81,14 @@ get_property(?X, 'age', ?Value),
 ?P = ['Alice', 'Bob', 'Charlie'],
 ?Q = [?X],
 ?Q subset ?P,
-?People = collection { ?Person | person(?Person) },
+?People = collection { ?Person | @limit("5") person(?Person) },
 ?Sum = sum{ ?N | ?N in [1,1,1,1,1,2,3,4,5] },
 ?Records =set { 
 ?Rec | 
 person(?Person),
 ( 
 (
-get_email(?Person, ?E),
+@limit("5") get_email(?Person, ?E),
 ?Rec = [?Person, ?E]
 );
 (

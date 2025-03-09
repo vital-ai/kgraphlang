@@ -27,6 +27,8 @@ def main():
         "compute_result(?x, [ happy, 'two', 3, true ]).",
         "test_list(?x, [ true, false ]), person(?y, [ 'Alice', 'Bob' ]).",
 
+        "@limit(5) person(?x, ?y), @limit(\"hello\") friend(?x, ?z); @hello(5, 6) enemy(?y, ?z).",  # predicate calls with variables
+
         "not(?x = 'value').",
 
         "not(person(?x, 'john')).",

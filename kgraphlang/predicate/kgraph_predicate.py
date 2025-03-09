@@ -6,18 +6,28 @@ class KGraphPredicate(ABC):
         pass
 
     @abstractmethod
-    def eval_impl(self, input_dict: dict) -> list:
+    def eval_impl(self, *, input_dict: dict, annotations: list = None) -> list:
         """
         Given a dictionary mapping parameter indices to either a bound value or UNBOUND,
         return a list of dictionaries mapping parameter indexes to concrete candidate values.
         """
         pass
 
+    @abstractmethod
+    def get_arity(self) -> int:
+        pass
+
+    def get_annotation_ids(self) -> list:
+        return []
+
     def is_variable(self, arg):
         return isinstance(arg, str) and arg.startswith("?")
 
     def evaluate(self, args, binding: BindingStack):
         # Build an input dictionary: index -> value (or UNBOUND)
+
+        annotations = binding.get_annotations()
+
         input_dict = {}
         for i, arg in enumerate(args):
             if self.is_variable(arg):
@@ -28,7 +38,7 @@ class KGraphPredicate(ABC):
             else:
                 input_dict[i] = arg
         # Delegate to the implementing function.
-        outputs = self.eval_impl(input_dict)
+        outputs = self.eval_impl(input_dict=input_dict, annotations=annotations)
         new_bindings = []
         for output in outputs:
             new_binding = binding.copy()

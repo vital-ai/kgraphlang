@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='kgraphlang',
-    version='0.0.9',
+    version='0.0.10',
     author='Marc Hadfield',
     author_email='marc@vital.ai',
     description='KGraph Lang',
@@ -25,7 +25,12 @@ setup(
         'vital-ai-vitalsigns>=0.1.27',
         'vital-ai-domain>=0.1.7',
 
-        'vital-logic>=0.1.0'
+        'vital-logic>=0.1.0',
+
+        'kgraphservice>=0.0.7',
+
+        'datasketch>=1.6.5',
+        'rapidfuzz>=3.9.6'
 
     ],
     extras_require={

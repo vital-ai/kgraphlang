@@ -4,7 +4,11 @@ import isodate
 import datetime
 from kgraphlang.parser.kgraph_infer_parser import KGraphInferParser
 
-UNBOUND = object()
+class _UnboundType:
+    def __repr__(self):
+        return "<UNBOUND>"
+
+UNBOUND = _UnboundType()
 
 class EvalResult(Enum):
     YES = "Yes"
@@ -20,11 +24,12 @@ class BindingStack:
     """
     Represents the current set of variable bindings.
     """
-    def __init__(self, bindings=None):
+    def __init__(self, bindings=None, annotations=None):
         self.bindings = bindings.copy() if bindings else {}
+        self.annotations = annotations.copy() if annotations else []
 
     def copy(self):
-        return BindingStack(self.bindings)
+        return BindingStack(self.bindings, self.annotations)
 
     def bind(self, var, value):
         """
@@ -47,6 +52,19 @@ class BindingStack:
     def get(self, var):
         return self.bindings.get(var)
 
+    def set_annotations(self, annotations):
+        """
+        Set the annotations for this binding.
+        """
+        # Make a copy to avoid accidental shared mutable state.
+        self.annotations = annotations.copy() if annotations else []
+
+    def get_annotations(self):
+        """
+        Get the annotations attached to this binding.
+        """
+        return self.annotations
+
     def __contains__(self, var):
         return var in self.bindings
 
@@ -54,8 +72,8 @@ class BindingStack:
         return self.bindings.copy()
 
     def __str__(self):
-        items = [f"{var}: {value}" for var, value in self.bindings.items()]
-        return "{" + ", ".join(items) + "}"
+        bindings_str = ", ".join(f"{var}: {value}" for var, value in self.bindings.items())
+        return "{" + bindings_str + "}, Annotations: " + str(self.annotations)
 
     def __repr__(self):
         return self.__str__()
@@ -604,6 +622,14 @@ class KGraphInfer:
             return [] if sub_bindings else [binding]
         elif tag == "GROUP":
             return self._evaluate_inner(node[1], binding)
+        elif tag == "annotated_predicate":
+            annotations = node[1]
+            stripped_annotations = [(ann[1], ann[2]) for ann in annotations if
+                                    isinstance(ann, tuple) and ann[0] == "annotation"]
+
+            new_binding = binding.copy()
+            new_binding.set_annotations(stripped_annotations)
+            return self._evaluate_inner(node[2], new_binding)
         elif tag == "predicate":
             pred_name = node[1]
             args = node[2]
