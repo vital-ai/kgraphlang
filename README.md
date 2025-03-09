@@ -2,11 +2,28 @@
 
 ## Overview
 
-KGraphLang is a specialized query language designed for querying Knowledge Graphs (KGs). 
-It provides a concise and human-readable syntax for creating complex queries involving logical conditions, arithmetic calculations, predicates, and aggregations. 
-KGraphLang is designed to simplify interactions with entities, relationships, and properties in graph databases.
+KGraphLang is a query language designed for LLMs to query Knowledge Graphs.
+
+KGraphLang uses predicates to access knowledge graph nodes and edges, and provides a comprehensive
+syntax to compose predicates and generate query results.
+
+KGraphLang is both human friendly and easy for LLMs to generate.
+
+Features include:
+* Defining predicates which can be implemented via code or queries to an underlying data source.
+* Annotating predicates with extra-logical inputs like @topk(10) to control predicate output
+* Aggregations for collections, sum, average, max, min
+* Math functions for add, subtract, multiply, divide
+* Base datatypes: string, number, boolean
+* Data types for time, currency, geolocation, units, URIs
+* Complex data types for List, Map
+* Single and multi-line comments
+
 
 KGraphLang is used with Ensemble Reasoning to implement the KGraphService Ensemble Member (EM).
+
+Using Ensemble Reasoning a reasoning LLM generates KGraphLang queries and processes results
+during the inference.  This avoids the latency of "tool calls" by integrating the knowledge graph directly with the reasoning LLM's model.
 
 ---
 
@@ -212,18 +229,25 @@ comment */
 A comprehensive query demonstrating multiple language features:
 
 ```kgraph
+// define property URIs we want to retrieve
 ?uri_prop = 'urn:uri_prop'^URI,
 ?name_prop = 'urn:name_prop'^URI,
 ?email_prop = 'urn:email_prop'^URI,
 
+// get a list of person URIs from the KG
 person_uri_list(?PersonList), 
 
+// create a collection of People, with each person
+// having a map containing the properties we want
 ?PersonEmailMapList = collection { 
     ?PersonMapRecord | 
     ?Pid in ?PersonList,
     ?prop_list = [ ?uri_prop, ?name_prop, ?email_prop ],
+    // get the person info from the KG
     get_person_map(?Pid, ?prop_list, ?PersonMapRecord)
 }.
+// now the LLM has the desired info from the KG which it can 
+// use for the next step in the reasoning process...
 ```
 
 ## Summary
