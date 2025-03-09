@@ -169,7 +169,9 @@ you?
             ?uri_prop = 'urn:uri_prop'^URI,
             ?name_prop = 'urn:name_prop'^URI,
             ?email_prop = 'urn:email_prop'^URI,
-        
+            
+            ?prop_list = [ ?uri_prop, ?name_prop, ?email_prop ],
+
             person_uri_list(?PersonList), 
         
             ?PersonEmailMapList = collection { 
@@ -178,7 +180,6 @@ you?
         
                 ?Pid in ?PersonList,
                 
-                ?prop_list = [ ?uri_prop, ?name_prop, ?email_prop ],
                  
                 get_person_map(?Pid, ?prop_list, ?PersonMapRecord)
         
